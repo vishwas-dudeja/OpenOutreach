@@ -101,8 +101,6 @@ def run_daemon() -> None:
     """Run the cycle until the process is stopped or a halting error is raised."""
     from openoutreach.core.operator import campaigns
 
-    _import_freemium_campaign()
-
     known = campaigns()
     if not known:
         logger.error("No campaigns found — cannot start daemon")

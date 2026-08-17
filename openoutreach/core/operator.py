@@ -26,10 +26,15 @@ def get_active_user():
 
 
 def campaigns():
-    """Every campaign this operator runs, oldest first — the cycle's rotation."""
+    """Every non-freemium campaign this operator runs, oldest first."""
     from openoutreach.core.models import Campaign
 
-    return list(Campaign.objects.filter(users=get_active_user()).order_by("pk"))
+    return list(
+        Campaign.objects.filter(
+            users=get_active_user(),
+            is_freemium=False,
+        ).order_by("pk")
+    )
 
 
 def self_profile() -> dict:
