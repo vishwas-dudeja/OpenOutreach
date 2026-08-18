@@ -28,7 +28,6 @@ from openoutreach.crm.models import DealState, Lead, Outcome
 from openoutreach.emails.mail_pass import run_mail_pass
 from openoutreach.emails.models import Mailbox
 from openoutreach.emails.sender import (
-    ATTRIBUTION,
     OPT_OUT_LINE,
     send_email,
     suppressed,
@@ -79,9 +78,10 @@ class TestOptOutIsAdvertised:
         render an unsubscribe button of their own."""
         assert OPT_OUT_LINE in _sent_message().get_content()
 
-    def test_opt_out_sits_between_the_signature_and_the_attribution(self):
+    def test_opt_out_follows_signature_without_attribution(self):
         body = _sent_message().get_content()
-        assert body.index("Eracle") < body.index(OPT_OUT_LINE) < body.index(ATTRIBUTION)
+        assert body.index("Eracle") < body.index(OPT_OUT_LINE)
+        assert "Sent with OpenOutreach" not in body
 
 
 class TestUnsubscribeAddress:

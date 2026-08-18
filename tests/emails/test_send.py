@@ -15,7 +15,6 @@ from openoutreach.core.db.deals import get_emailable_deals
 from openoutreach.crm.models import DealState
 from openoutreach.emails.models import Mailbox
 from openoutreach.emails.sender import (
-    ATTRIBUTION,
     OPT_OUT_LINE,
     operator_bcc,
     send_email,
@@ -221,10 +220,10 @@ class TestSentBodyLogging:
         assert "How do you do discovery today?" in text
 
     def test_the_appended_boilerplate_is_not_logged(self, campaign, caplog):
-        """Signature, opt-out and attribution are the same on every send — noise here."""
+        """Signature and opt-out are the same on every send — noise here."""
         text = self._send(campaign, caplog)
         assert "— Ercole" not in text
-        assert ATTRIBUTION.strip() not in text
+        assert "Sent with OpenOutreach" not in text
         assert OPT_OUT_LINE.strip() not in text
 
     def test_freemium_campaign_logs_metadata_only(self, campaign, caplog):
@@ -268,19 +267,19 @@ class TestSendEmailSignature:
     def test_signature_appended_after_blank_line(self):
         body = self._sent_body("Eracle\nopenoutreach.app")
         assert body == (
-            f"Body\n\nEracle\nopenoutreach.app\n\n{OPT_OUT_LINE}\n\n{ATTRIBUTION}\n"
+            f"Body\n\nEracle\nopenoutreach.app\n\n{OPT_OUT_LINE}\n"
         )
 
-    def test_body_carries_only_opt_out_and_attribution_when_signature_blank(self):
-        assert self._sent_body("") == f"Body\n\n{OPT_OUT_LINE}\n\n{ATTRIBUTION}\n"
+    def test_body_carries_only_opt_out_when_signature_blank(self):
+        assert self._sent_body("") == f"Body\n\n{OPT_OUT_LINE}\n"
 
-    def test_body_carries_only_opt_out_and_attribution_when_signature_unset(self):
+    def test_body_carries_only_opt_out_when_signature_unset(self):
         """A never-asked box (NULL) sends unsigned rather than crashing on None."""
-        assert self._sent_body(None) == f"Body\n\n{OPT_OUT_LINE}\n\n{ATTRIBUTION}\n"
+        assert self._sent_body(None) == f"Body\n\n{OPT_OUT_LINE}\n"
 
 
 @pytest.mark.django_db
-class TestSendEmailAttribution:
+class TestSendEmailNoAttribution:
     def _box(self, signature=None):
         return maillog.mailbox("s@infra.com", signature=signature)
 
@@ -289,18 +288,23 @@ class TestSendEmailAttribution:
             send_email(box, "lead@corp.com", "Hi", "Body", **kwargs)
         return deliver.call_args.args[1].get_content()
 
-    def test_attribution_is_the_last_line(self):
+    def test_openoutreach_attribution_is_absent(self):
         body = self._sent_body(self._box("Eracle"))
-        assert body.rstrip().splitlines()[-1] == ATTRIBUTION
+        assert "Sent with OpenOutreach" not in body
 
-    def test_attribution_follows_the_signature(self):
+    def test_opt_out_is_the_last_line(self):
         body = self._sent_body(self._box("Eracle"))
-        assert body.index("Eracle") < body.index(ATTRIBUTION)
+        assert body.rstrip().splitlines()[-1] == OPT_OUT_LINE
 
-    def test_follow_up_also_carries_attribution(self):
-        """Threaded replies go through the same assembly, so they carry it too."""
+    def test_opt_out_follows_the_signature(self):
+        body = self._sent_body(self._box("Eracle"))
+        assert body.index("Eracle") < body.index(OPT_OUT_LINE)
+
+    def test_follow_up_also_has_no_attribution(self):
+        """Threaded replies go through the same assembly, so they carry no attribution too."""
         body = self._sent_body(self._box("Eracle"), in_reply_to="<prior@corp.com>")
-        assert body.endswith(f"{ATTRIBUTION}\n")
+        assert "Sent with OpenOutreach" not in body
+        assert body.endswith(f"{OPT_OUT_LINE}\n")
 
     def test_body_is_not_logged_on_send(self, caplog):
         with caplog.at_level("INFO", logger="openoutreach.emails.sender"):
@@ -308,7 +312,7 @@ class TestSendEmailAttribution:
         records = [r for r in caplog.records if r.name == "openoutreach.emails.sender"]
         assert len(records) == 1
         logged = records[0].getMessage()
-        assert "Body" not in logged and ATTRIBUTION not in logged
+        assert "Body" not in logged and "Sent with OpenOutreach" not in logged
         assert "lead@corp.com" in logged and "Hi" in logged
 
 

@@ -42,29 +42,21 @@ logger = logging.getLogger(__name__)
 
 
 def buy_address(deal) -> DealState | None:
-    """Resolve this deal's work email, cheapest source first. Returns the next state."""
-    from openoutreach.contacts import service as contacts
-
+    """Resolve this deal's work email privately, using BetterContact when needed."""
     logger.info("%s", block_header(
         f"buy_address · {deal.campaign} · {deal.lead.profile_url}", "cyan"))
 
-    # Already in hand — resolved in another campaign, imported, or an earlier hub
-    # give-back (Lead is account-level, Deal is campaign-scoped). No lookup, no credit.
+    # Already resolved locally — no lookup or provider credit required.
     if deal.lead.email:
         logger.info("%s", step_line(
-            "known email", "already resolved → READY_TO_EMAIL", glyph="✓", color="green"))
+            "known email",
+            "already resolved → READY_TO_EMAIL",
+            glyph="✓",
+            color="green",
+        ))
         return DealState.READY_TO_EMAIL
 
-    # Free hub cache next — a hit skips the provider job, and the credit, entirely.
-    cached = contacts.resolve(deal.lead)
-    if cached:
-        deal.lead.email = cached
-        deal.lead.save(update_fields=["email"])
-        logger.info("%s", step_line(
-            "hub cache", "hit → READY_TO_EMAIL", glyph="✓", color="green"))
-        return DealState.READY_TO_EMAIL
-
-    logger.info("%s", step_line("hub cache", "miss"))
+    # Vina deployment: skip the OpenOutreach shared contacts hub entirely.
     return _submit(deal)
 
 
@@ -124,12 +116,11 @@ def reclaim_lookup(deal) -> DealState:
 def check_lookup(deal) -> DealState | None:
     """Poll this deal's in-flight lookup exactly once and act on the outcome.
 
-        hit           → READY_TO_EMAIL (address stored + given back to the hub)
+        hit           → READY_TO_EMAIL (address stored locally)
         miss          → NO_EMAIL_BETTERCONTACT (terminal — a fit positive the ML keeps)
         still running → back off, stay put
         couldn't poll → retry at the same interval (nothing was learned about the job)
     """
-    from openoutreach.contacts import service as contacts
     from openoutreach.emails import bettercontact
     from openoutreach.emails.bettercontact import BetterContactUnavailable
 
@@ -163,7 +154,6 @@ def check_lookup(deal) -> DealState | None:
 
     deal.lead.email = outcome.email
     deal.lead.save(update_fields=["email"])
-    contacts.contribute(deal.lead, [outcome.email], contacts.ORIGIN_BETTERCONTACT)
     logger.info("%s", step_line(
         "hit", f"{outcome.email} → READY_TO_EMAIL", glyph="✓", color="green"))
     return DealState.READY_TO_EMAIL

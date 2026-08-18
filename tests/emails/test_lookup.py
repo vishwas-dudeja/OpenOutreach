@@ -51,25 +51,28 @@ class TestBuyAddress:
         resolve.assert_not_called()
         submit.assert_not_called()
 
-    def test_a_hub_hit_skips_the_paid_job(self, campaign):
+    def test_hub_lookup_is_never_called_even_if_hub_has_email(self, campaign):
+        """Production Vina deployment must NOT call contacts.resolve, proceeding to BetterContact."""
         deal = _ready_to_find(campaign)
 
-        with patch("openoutreach.contacts.service.resolve", return_value="hub@corp.com"), \
-                patch("openoutreach.emails.bettercontact.submit") as submit:
-            assert buy_address(deal) == DealState.READY_TO_EMAIL
+        with patch("openoutreach.contacts.service.resolve", return_value="hub@corp.com") as resolve, \
+                patch("openoutreach.emails.bettercontact.is_configured", return_value=True), \
+                patch("openoutreach.emails.bettercontact.submit", return_value="req-vina-1") as submit:
+            assert buy_address(deal) == DealState.FINDING_EMAIL
 
-        submit.assert_not_called()
-        deal.lead.refresh_from_db()
-        assert deal.lead.email == "hub@corp.com"
+        resolve.assert_not_called()
+        submit.assert_called_once()
+        assert deal.lookup_request_id == "req-vina-1"
 
-    def test_a_hub_miss_submits_and_parks_on_the_handle(self, campaign):
+    def test_lookup_submits_and_parks_on_the_handle(self, campaign):
         deal = _ready_to_find(campaign)
 
-        with patch("openoutreach.contacts.service.resolve", return_value=None), \
+        with patch("openoutreach.contacts.service.resolve") as resolve, \
                 patch("openoutreach.emails.bettercontact.is_configured", return_value=True), \
                 patch("openoutreach.emails.bettercontact.submit", return_value="req-42"):
             assert buy_address(deal) == DealState.FINDING_EMAIL
 
+        resolve.assert_not_called()
         assert deal.lookup_request_id == "req-42"
         assert deal.lookup_attempt == 0
         assert deal.not_before > timezone.now()
@@ -77,11 +80,12 @@ class TestBuyAddress:
     def test_an_unconfigured_finder_leaves_the_deal_queued(self, campaign):
         deal = _ready_to_find(campaign)
 
-        with patch("openoutreach.contacts.service.resolve", return_value=None), \
+        with patch("openoutreach.contacts.service.resolve") as resolve, \
                 patch("openoutreach.emails.bettercontact.is_configured", return_value=False), \
                 patch("openoutreach.emails.bettercontact.submit") as submit:
             assert buy_address(deal) is None
 
+        resolve.assert_not_called()
         submit.assert_not_called()
         assert deal.lookup_request_id == ""
 
@@ -89,12 +93,13 @@ class TestBuyAddress:
         """No handle exists to poll, so the next cycle simply tries again."""
         deal = _ready_to_find(campaign)
 
-        with patch("openoutreach.contacts.service.resolve", return_value=None), \
+        with patch("openoutreach.contacts.service.resolve") as resolve, \
                 patch("openoutreach.emails.bettercontact.is_configured", return_value=True), \
                 patch("openoutreach.emails.bettercontact.submit",
                       side_effect=BetterContactUnavailable("503")):
             assert buy_address(deal) is None
 
+        resolve.assert_not_called()
         assert deal.lookup_request_id == ""
 
 
@@ -103,7 +108,7 @@ class TestBuyAddress:
 
 @pytest.mark.django_db
 class TestCheckLookup:
-    def test_a_hit_stores_the_address_and_gives_it_back(self, campaign):
+    def test_a_hit_stores_the_address_locally_without_hub_contribution(self, campaign):
         deal = _in_flight(campaign)
 
         with patch("openoutreach.emails.bettercontact.poll_once",
@@ -113,7 +118,7 @@ class TestCheckLookup:
 
         deal.lead.refresh_from_db()
         assert deal.lead.email == "found@corp.com"
-        contribute.assert_called_once()
+        contribute.assert_not_called()
         assert deal.not_before is None
         assert deal.lookup_request_id == ""
 

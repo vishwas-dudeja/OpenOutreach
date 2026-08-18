@@ -33,10 +33,10 @@ def send_email(
 ):
     """Send ``body`` from ``mailbox`` to ``to_address``; return its ``Message`` row.
 
-    The mailbox's signature, the opt-out block and the product attribution line
+    The mailbox's signature and the opt-out block
     are appended to ``body`` here rather than at the call sites, so every send —
-    opener and follow-up — carries all three, in the order body → signature →
-    opt-out → attribution. The matching ``List-Unsubscribe`` header goes on the
+    opener and follow-up — carries both, in the order body → signature →
+    opt-out. The matching ``List-Unsubscribe`` header goes on the
     same message: header and body line are two halves of one opt-out, and only
     building them together makes it impossible to ship one without the other.
 
@@ -122,8 +122,8 @@ def operator_bcc(user, campaign) -> str | None:
 def _sent_block(subject: str, body: str) -> str:
     """What the agent wrote, indented under its subject.
 
-    The ``body`` argument, deliberately — not the assembled message. The signature,
-    opt-out line and attribution are fixed text appended to every send, so logging
+    The ``body`` argument, deliberately — not the assembled message. The signature
+    and opt-out line are fixed text appended to every send, so logging
     them repeats what the operator already knows on every line and buries the one
     part that differs: what the agent actually composed for this lead.
 
@@ -152,7 +152,7 @@ def _build_message(mailbox, to_address, subject, body, bcc, in_reply_to, referen
     if in_reply_to:
         message["In-Reply-To"] = in_reply_to
         message["References"] = references or in_reply_to
-    message.set_content(_attribute(_opt_out(_sign(body, mailbox.signature))))
+    message.set_content(_opt_out(_sign(body, mailbox.signature)))
     return message
 
 
@@ -184,7 +184,7 @@ OPT_OUT_LINE = "Don't want to hear from me? Reply with \"unsubscribe\" and I'll 
 
 
 def _opt_out(body: str) -> str:
-    """Append the visible opt-out line, after the signature and before the attribution.
+    """Append the visible opt-out line, after the signature.
 
     Plain text rather than a link: a typed reply works in every client, including
     the ones where Gmail declines to render its own unsubscribe button, so it
@@ -193,21 +193,6 @@ def _opt_out(body: str) -> str:
     wants one, so they take it instead of the spam button.
     """
     return f"{body.rstrip()}\n\n{OPT_OUT_LINE}\n"
-
-
-ATTRIBUTION = "Sent with OpenOutreach"
-
-
-def _attribute(body: str) -> str:
-    """Append the product attribution line, separated by a blank line.
-
-    Always on, last in the message (after the signature): every recipient of an
-    outbound email is a plausible future operator. It names the product without
-    linking it — a bare name reads as a footer, a URL reads as an ad, and anyone
-    curious enough to act on it can search. The separator matches every other
-    block's, so the tail of the message reads as evenly spaced.
-    """
-    return f"{body.rstrip()}\n\n{ATTRIBUTION}\n"
 
 
 def _mint_message_id(from_address: str) -> str:
