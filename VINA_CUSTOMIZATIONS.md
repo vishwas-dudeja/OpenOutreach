@@ -24,12 +24,17 @@ This document details the intentional production customizations implemented for 
 6. **Deliverability & Unsubscribe Safeguards Preserved**:
    - Mailbox signatures, `List-Unsubscribe` headers, visible opt-out lines (`OPT_OUT_LINE`), suppression handling (`suppressed()`), bounce detection, and reply threading remain fully operational.
 
+7. **NVIDIA Reasoning Disabled at Request Level**:
+   - NVIDIA OpenAI-compatible requests (detected via `integrate.api.nvidia.com` in `api_base` or `nvidia/` in `model`) carry `ModelSettings(extra_body={"chat_template_kwargs": {"enable_thinking": False}})` in `openoutreach/core/llm.py`.
+   - This prevents reasoning/thinking text generation at the request level across qualification, outreach generation, and onboarding verification (`verify_llm_credentials()`).
+
 ## Primary Files Modified / Added
 
 - `openoutreach/emails/steps/lookup.py`
 - `openoutreach/emails/sender.py`
 - `openoutreach/core/operator.py`
 - `openoutreach/core/cycle.py`
+- `openoutreach/core/llm.py`
 - `tests/emails/test_lookup.py`
 - `tests/emails/test_send.py`
 - `tests/emails/test_unsubscribe.py`

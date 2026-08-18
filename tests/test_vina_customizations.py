@@ -42,3 +42,47 @@ class TestVinaCustomizations:
         active_campaigns = campaigns()
         assert prod in active_campaigns
         assert free not in active_campaigns
+
+    def test_nvidia_openai_compatible_disables_thinking(self):
+        """NVIDIA OpenAI-compatible model must receive extra_body with enable_thinking=False."""
+        from openoutreach.core.llm import build_llm_model
+
+        model = build_llm_model(
+            "openai_compatible:nvidia/nemotron-3.5-lightning-30b-a3b",
+            "dummy_key",
+            "https://integrate.api.nvidia.com/v1",
+        )
+        assert model.settings is not None
+        assert model.settings.get("extra_body") == {
+            "chat_template_kwargs": {
+                "enable_thinking": False,
+            },
+        }
+
+    def test_non_nvidia_openai_compatible_preserves_default_settings(self):
+        """Generic non-NVIDIA OpenAI-compatible endpoints must not receive NVIDIA extra_body settings."""
+        from openoutreach.core.llm import build_llm_model
+
+        model = build_llm_model(
+            "openai_compatible:custom-model",
+            "dummy_key",
+            "https://custom-llm.example.com/v1",
+        )
+        assert model.settings is None or "extra_body" not in model.settings
+
+    def test_standard_providers_unchanged(self):
+        """Standard providers build successfully without receiving NVIDIA extra_body settings."""
+        from openoutreach.core.llm import build_llm_model
+
+        providers = [
+            ("openai:gpt-4o", ""),
+            ("anthropic:claude-3-5-sonnet", ""),
+            ("google:gemini-1.5-pro", ""),
+            ("groq:llama-3.3-70b", ""),
+            ("mistral:mistral-large", ""),
+            ("cohere:command-r-plus", ""),
+        ]
+        for ai_model, api_base in providers:
+            model = build_llm_model(ai_model, "dummy_key", api_base)
+            settings = getattr(model, "settings", None)
+            assert settings is None or "extra_body" not in settings
