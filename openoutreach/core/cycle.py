@@ -130,8 +130,8 @@ def run_daemon() -> None:
 def _rotate():
     """Endless round-robin over the operator's campaigns, re-read each lap.
 
-    Re-reading matters on a fresh install: the freemium campaign is imported at
-    startup and a first campaign is created during onboarding, so a rotation frozen
+    Re-reading matters on a fresh install or dynamic updates: campaigns can be created
+    during onboarding or added while the daemon is running, so a rotation frozen
     at boot would run one campaign forever.
     """
     from openoutreach.core.operator import campaigns
