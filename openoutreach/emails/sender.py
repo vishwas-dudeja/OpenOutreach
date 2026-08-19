@@ -179,9 +179,7 @@ def _sign(body: str, signature: str | None) -> str:
         return body
     return f"{body.rstrip()}\n\n{signature}\n"
 
-
-OPT_OUT_LINE = "Don't want to hear from me? Reply with \"unsubscribe\" and I'll stop."
-
+OPT_OUT_LINE = 'Reply "unsubscribe" to opt out.'
 
 def _opt_out(body: str) -> str:
     """Append the visible opt-out line, after the signature.
